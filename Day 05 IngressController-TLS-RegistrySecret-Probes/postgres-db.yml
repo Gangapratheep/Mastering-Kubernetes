@@ -1,0 +1,109 @@
+Sure! Based on your request, you want a **PostgreSQL Deployment YAML** that follows the same pattern as your **MySQL deployment**, including:
+
+* Using a **Secret** for the password
+* Mounting a **PVC** (instead of `emptyDir`)
+* Mounting an **init script** from a **ConfigMap**
+
+---
+
+Here's a sample **PostgreSQL Deployment YAML** that mirrors your MySQL-style configuration:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:9.4
+        env:
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: POSTGRES_PASSWORD
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        ports:
+        - containerPort: 5432
+          name: postgres
+        volumeMounts:
+        - name: postgres-pv-claim
+          mountPath: /var/lib/postgresql/data
+        - name: postgres-initdb
+          mountPath: /docker-entrypoint-initdb.d
+      volumes:
+      - name: postgres-initdb
+        configMap:
+          name: postgres-initdb-config
+```
+
+---
+
+### ✅ Required Supporting Resources
+
+1. **Secret**
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-secret
+type: Opaque
+data:
+  POSTGRES_PASSWORD: cG9zdGdyZXM=   # base64 for 'postgres'
+```
+
+2. **ConfigMap (optional init script)**
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-initdb-config
+data:
+  init.sql: |
+    CREATE DATABASE myapp;
+    CREATE USER myuser WITH ENCRYPTED PASSWORD 'mypassword';
+    GRANT ALL PRIVILEGES ON DATABASE myapp TO myuser;
+```
+
+3. **PersistentVolumeClaim (PVC)**
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pv-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+> ✅ **Note:** If you're using the PVC (`postgres-pv-claim`) in the volume mount, you need to declare it in the `volumes` section, like this:
+
+```yaml
+      volumes:
+      - name: postgres-pv-claim
+        persistentVolumeClaim:
+          claimName: postgres-pv-claim
+```
+
+---
+
+Would you like me to bundle everything into a complete YAML file you can apply directly with `kubectl apply -f`?
